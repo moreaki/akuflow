@@ -1,6 +1,6 @@
 package com.convertic.akuflow.api
 
-import com.convertic.sigma.temporal.workflows.BpmnWorkflow
+import com.convertic.akuflow.temporal.workflows.BpmnWorkflow
 import io.temporal.client.WorkflowClient
 import org.springframework.web.bind.annotation.*
 
