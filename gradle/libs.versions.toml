@@ -1,0 +1,34 @@
+[versions]
+kotlin          = "2.0.20"
+spring-boot     = "3.3.4"
+spring-dep-mgmt = "1.1.6"
+temporal        = "1.32.0"
+camunda-model   = "7.21.0"
+groovy          = "3.0.21"
+jackson-kotlin  = "2.17.2"
+postgres        = "42.7.4"
+
+[libraries]
+spring-boot-starter-web      = { module = "org.springframework.boot:spring-boot-starter-web", version.ref = "spring-boot" }
+spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa", version.ref = "spring-boot" }
+spring-boot-starter-test     = { module = "org.springframework.boot:spring-boot-starter-test", version.ref = "spring-boot" }
+
+jackson-module-kotlin        = { module = "com.fasterxml.jackson.module:jackson-module-kotlin", version.ref = "jackson-kotlin" }
+
+temporal-spring-boot-starter = { module = "io.temporal:temporal-spring-boot-starter", version.ref = "temporal" }
+
+camunda-bpmn-model           = { module = "org.camunda.bpm.model:camunda-bpmn-model", version.ref = "camunda-model" }
+
+groovy-all                   = { module = "org.codehaus.groovy:groovy", version.ref = "groovy" }
+
+postgresql                   = { module = "org.postgresql:postgresql", version.ref = "postgres" }
+
+kotlin-reflect               = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
+kotlin-stdlib-jdk8           = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk8", version.ref = "kotlin" }
+
+[plugins]
+spring-boot                  = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dep-mgmt" }
+kotlin-jvm                   = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-spring                = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+kotlin-jpa                   = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin" }
