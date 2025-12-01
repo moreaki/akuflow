@@ -6,7 +6,7 @@ spring:
     name: akuflow
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/akuflow
+    url: jdbc:postgresql://localhost:16432/akuflow
     username: akuflow
     password: akuflow
   jpa:
