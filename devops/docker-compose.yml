@@ -24,9 +24,9 @@ services:
     environment:
       - TEMPORAL_FRONTEND_GRPC_PORT=7233
       - DB=postgres12
-      - POSTGRES_USER=temporal
-      - POSTGRES_PASSWORD=temporal
-      - POSTGRES_SEEDS=127.0.0.1
+      - POSTGRES_USER=akuflow
+      - POSTGRES_PWD=akuflow
+      - POSTGRES_SEEDS=akuflow-postgres
       - TEMPORAL_ADDRESS=temporal:7233
       - DYNAMIC_CONFIG_FILE_PATH=/etc/temporal/config/dynamicconfig/development-sql.yaml
     networks:
