@@ -1,0 +1,21 @@
+name: Akuflow
+
+services:
+  akuflow-postgres:
+    image: postgres:17
+    container_name: akuflow-postgres
+    environment:
+      POSTGRES_USER: akuflow
+      POSTGRES_PASSWORD: akuflow
+    volumes:
+      - postgres-akuflow-volume:/var/lib/postgresql/data
+    ports:
+      - "16432:5432"
+    networks:
+      - akuflow-network
+
+networks:
+  akuflow-network:
+
+volumes:
+  postgres-akuflow-volume:
