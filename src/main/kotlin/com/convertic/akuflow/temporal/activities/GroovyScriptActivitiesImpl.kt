@@ -33,8 +33,12 @@ class GroovyScriptActivitiesImpl : GroovyScriptActivities {
             throw BpmnBusinessError(be.errorCode, be.message)
         }
 
-        // sync all binding vars back
-        binding.variables.forEach { (k, v) -> vars[k] = v }
+        // sync all binding vars back (only String keys)
+        for ((key, value) in binding.variables) {
+            if (key is String) {
+                vars[key] = value
+            }
+        }
 
         return vars
     }
