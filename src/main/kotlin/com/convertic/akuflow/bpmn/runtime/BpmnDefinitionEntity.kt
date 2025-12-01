@@ -29,7 +29,7 @@ class BpmnProcessDefinitionEntity(
     @Column(columnDefinition = "TEXT")
     val compiledJson: String,
 
-    val active: Boolean = true,
+    var active: Boolean = true,
 
     val deployedAt: Instant = Instant.now()
 )

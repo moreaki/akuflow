@@ -19,8 +19,9 @@ class BpmnDefinitionService(
         val compiled = compiler.compile(processKey, xml, nextVersion)
         val compiledJson = compiler.toJson(compiled)
 
-        latest?.let {
-            if (it.active) repo.save(it.copy(active = false))
+        if (latest != null && latest.active) {
+            latest.active = false
+            repo.save(latest)
         }
 
         val entity = BpmnProcessDefinitionEntity(
