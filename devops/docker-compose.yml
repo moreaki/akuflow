@@ -17,18 +17,17 @@ services:
   temporal:
     image: temporalio/auto-setup:latest
     container_name: temporal
-    ports:
-      - "7233:7233"
     depends_on:
       - akuflow-postgres
+    ports:
+      - "7233:7233"
     environment:
-      - TEMPORAL_FRONTEND_GRPC_PORT=7233
-      - DB=postgres12
-      - POSTGRES_USER=akuflow
-      - POSTGRES_PWD=akuflow
-      - POSTGRES_SEEDS=akuflow-postgres
-      - TEMPORAL_ADDRESS=temporal:7233
-      - DYNAMIC_CONFIG_FILE_PATH=/etc/temporal/config/dynamicconfig/development-sql.yaml
+      DB: postgres12
+      POSTGRES_USER: akuflow
+      POSTGRES_PWD: akuflow
+      POSTGRES_SEEDS: akuflow-postgres
+      TEMPORAL_DEFAULT_NAMESPACE: default
+      TEMPORAL_DEFAULT_NAMESPACE_RETENTION: 3
     networks:
       - akuflow-network
 
@@ -38,10 +37,10 @@ services:
     depends_on:
       - temporal
     environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS=http://localhost:8080
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:8080
     ports:
-      - "8081:8080"
+      - "8088:8080"
     networks:
       - akuflow-network
 

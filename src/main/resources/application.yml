@@ -22,3 +22,12 @@ temporal:
   connection:
     target: 127.0.0.1:7233
   namespace: default
+  workers:
+    - task-queue: akuflow-bpmn
+      name: akuflow-bpmn-worker
+      workflow-classes:
+        - com.convertic.akuflow.temporal.workflows.BpmnWorkflowImpl
+      activity-beans:
+        - serviceTaskDispatcherActivitiesImpl
+        - groovyScriptActivitiesImpl
+        - definitionLookupActivitiesImpl
