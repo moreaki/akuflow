@@ -14,6 +14,33 @@ services:
     networks:
       - akuflow-network
 
+  temporal:
+    image: temporalio/auto-setup:1.27.0
+    container_name: temporal
+    ports:
+      - "7233:7233"
+    environment:
+      - TEMPORAL_FRONTEND_GRPC_PORT=7233
+      - DB=postgresql
+      - POSTGRES_USER=temporal
+      - POSTGRES_PASSWORD=temporal
+      - POSTGRES_SEEDS=temporal-postgresql
+    networks:
+      - akuflow-network
+
+  temporal-ui:
+    image: temporalio/ui:2.27.2
+    container_name: temporal-ui
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:8080
+    ports:
+      - "8081:8080"
+    networks:
+      - akuflow-network
+
 networks:
   akuflow-network:
 
