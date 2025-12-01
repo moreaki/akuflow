@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Akuflow" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="akuflow.main" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.convertic.akuflow.AkuflowApplication" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
