@@ -18,16 +18,3 @@ spring:
         format_sql: true
         show_sql: false
 
-temporal:
-  connection:
-    target: local
-  namespace: default
-  workers:
-    - task-queue: akuflow-bpmn
-      name: akuflow-bpmn-worker
-      workflow-classes:
-        - com.convertic.akuflow.temporal.workflows.BpmnWorkflowImpl
-      activity-beans:
-        - serviceTaskDispatcherActivitiesImpl
-        - groovyScriptActivitiesImpl
-        - definitionLookupActivitiesImpl
