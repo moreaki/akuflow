@@ -75,12 +75,12 @@ class BpmnCompiler(
     }
 
     private fun compileUserTask(ut: UserTask): UserTaskNode {
-        // Minimal: ignore form metadata for now
+        // Minimal: ignore form metadata & camunda extensions for now
         return UserTaskNode(
             id = ut.id,
             name = ut.name ?: ut.id,
-            formKey = ut.formKey,
-            assigneeRole = ut.candidateGroups,
+            formKey = null,
+            assigneeRole = null,
             formFields = emptyList()
         )
     }
