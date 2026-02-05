@@ -89,12 +89,14 @@ class BpmnDefinitionService(
                 )
             }
 
+    @Transactional(readOnly = true)
     fun latestActive(processKey: String): CompiledProcess {
         val entity = repo.findTopByProcessKeyAndActiveIsTrueOrderByVersionDesc(processKey)
             ?: throw DefinitionNotFoundException("No active definition for processKey=$processKey")
         return loadCompiled(entity)
     }
 
+    @Transactional(readOnly = true)
     fun byVersion(processKey: String, version: Int): CompiledProcess {
         val entity = repo.findByProcessKeyAndVersion(processKey, version)
             ?: throw DefinitionNotFoundException("No definition for processKey=$processKey and version=$version")
