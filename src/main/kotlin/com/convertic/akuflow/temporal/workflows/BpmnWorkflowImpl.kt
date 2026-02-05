@@ -56,19 +56,23 @@ class BpmnWorkflowImpl : BpmnWorkflow {
             val node = nodeById[currentId] ?: error("Unknown node id: $currentId")
 
             currentId = when (node) {
-                is StartNode -> nextSequence(currentId)
+                is StartNode -> nextSequence(currentId, def.transitions)
                 is UserTaskNode -> {
                     waitForUserTask(node)
-                    nextSequence(currentId)
+                    nextSequence(currentId, def.transitions)
                 }
-                is ServiceTaskNode -> executeServiceTask(node, currentId)
-                is ScriptTaskNode -> executeScriptTask(node, currentId)
-                is ExclusiveGatewayNode -> routeExclusive(node)
-                is ParallelGatewayNode -> routeParallel(node)
-                is CallActivityNode -> executeCallActivity(node, currentId)
+                is ServiceTaskNode -> executeServiceTask(node, currentId, def.transitions)
+                is ScriptTaskNode -> executeScriptTask(node, currentId, def.transitions)
+                is ExclusiveGatewayNode -> routeExclusive(node, def.transitions)
+                is ParallelGatewayNode -> routeParallel(node, def.nodes, def.transitions)
+                is CallActivityNode -> executeCallActivity(node, currentId, def.transitions)
+                is SubProcessNode -> {
+                    executeSubProcess(node)
+                    nextSequence(currentId, def.transitions)
+                }
                 is TimerBoundaryNode -> {
                     Workflow.sleep(parseDuration(node.durationExpression))
-                    nextSequence(currentId)
+                    nextSequence(currentId, def.transitions)
                 }
                 is EndNode -> return
             }
@@ -97,27 +101,39 @@ class BpmnWorkflowImpl : BpmnWorkflow {
         pendingUserTaskId = null
     }
 
-    private fun executeServiceTask(node: ServiceTaskNode, currentId: String): String =
+    private fun executeServiceTask(
+        node: ServiceTaskNode,
+        currentId: String,
+        transitions: List<Transition>
+    ): String =
         try {
             dispatcher.execute(node.handlerKey, vars)
-            nextSequence(currentId)
+            nextSequence(currentId, transitions)
         } catch (e: BpmnBusinessError) {
-            handleBusinessError(currentId, e.errorCode)
+            handleBusinessError(currentId, e.errorCode, transitions)
         }
 
-    private fun executeScriptTask(node: ScriptTaskNode, currentId: String): String {
+    private fun executeScriptTask(
+        node: ScriptTaskNode,
+        currentId: String,
+        transitions: List<Transition>
+    ): String {
         if (node.scriptFormat.lowercase() != "groovy") {
             throw IllegalArgumentException("Unsupported scriptFormat=${node.scriptFormat}")
         }
         return try {
             groovy.executeGroovy(node.script, vars, node.handlerKey ?: node.id)
-            nextSequence(currentId)
+            nextSequence(currentId, transitions)
         } catch (e: BpmnBusinessError) {
-            handleBusinessError(currentId, e.errorCode)
+            handleBusinessError(currentId, e.errorCode, transitions)
         }
     }
 
-    private fun executeCallActivity(node: CallActivityNode, currentId: String): String {
+    private fun executeCallActivity(
+        node: CallActivityNode,
+        currentId: String,
+        transitions: List<Transition>
+    ): String {
         val childVars = mutableMapOf<String, Any?>()
         node.inMappings.forEach { m ->
             if (m.allVariables) {
@@ -139,11 +155,11 @@ class BpmnWorkflowImpl : BpmnWorkflow {
             }
         }
 
-        return nextSequence(currentId)
+        return nextSequence(currentId, transitions)
     }
 
-    private fun nextSequence(fromId: String): String {
-        val candidates = def.transitions.filter {
+    private fun nextSequence(fromId: String, transitions: List<Transition>): String {
+        val candidates = transitions.filter {
             it.fromId == fromId && it.errorCode == null && it.signalName == null && it.messageName == null
         }
         require(candidates.isNotEmpty()) { "No outgoing transition from $fromId" }
@@ -151,8 +167,8 @@ class BpmnWorkflowImpl : BpmnWorkflow {
         return candidates.first().toId
     }
 
-    private fun routeExclusive(gw: ExclusiveGatewayNode): String {
-        val outgoing = def.transitions.filter { it.fromId == gw.id }
+    private fun routeExclusive(gw: ExclusiveGatewayNode, transitions: List<Transition>): String {
+        val outgoing = transitions.filter { it.fromId == gw.id }
 
         outgoing.forEach { t ->
             t.conditionExpression?.let { expr ->
@@ -167,46 +183,92 @@ class BpmnWorkflowImpl : BpmnWorkflow {
             ?: error("No outgoing transition from gateway ${gw.id}")
     }
 
-    private fun routeParallel(gw: ParallelGatewayNode): String {
-        val outgoing = def.transitions.filter { it.fromId == gw.id }
+    private fun routeParallel(
+        gw: ParallelGatewayNode,
+        nodes: List<Node>,
+        transitions: List<Transition>
+    ): String {
+        val outgoing = transitions.filter { it.fromId == gw.id }
         val branches = outgoing.map { t ->
-            Async.procedure { executeBranchFrom(t.toId) }
+            Async.procedure { executeBranchFrom(t.toId, nodes, transitions) }
         }
         Workflow.await { branches.all { it.isCompleted } }
 
-        val join = def.nodes.filterIsInstance<ParallelGatewayNode>()
-            .firstOrNull { pn -> def.transitions.any { it.toId == pn.id && it.fromId != gw.id } }
+        val join = nodes.filterIsInstance<ParallelGatewayNode>()
+            .firstOrNull { pn -> transitions.any { it.toId == pn.id && it.fromId != gw.id } }
             ?: error("No join gateway for parallel split ${gw.id}")
 
-        return nextSequence(join.id)
+        return nextSequence(join.id, transitions)
     }
 
-    private fun executeBranchFrom(startId: String) {
-        val nodeById = def.nodes.associateBy { it.id }
+    private fun executeBranchFrom(startId: String, nodes: List<Node>, transitions: List<Transition>) {
+        val nodeById = nodes.associateBy { it.id }
         var currentId = startId
 
         while (true) {
             val node = nodeById[currentId] ?: return
             currentId = when (node) {
-                is ServiceTaskNode -> executeServiceTask(node, currentId)
-                is ScriptTaskNode -> executeScriptTask(node, currentId)
+                is StartNode -> nextSequence(currentId, transitions)
+                is ServiceTaskNode -> executeServiceTask(node, currentId, transitions)
+                is ScriptTaskNode -> executeScriptTask(node, currentId, transitions)
                 is UserTaskNode -> {
                     waitForUserTask(node)
-                    nextSequence(currentId)
+                    nextSequence(currentId, transitions)
                 }
-                is ExclusiveGatewayNode -> routeExclusive(node)
+                is ExclusiveGatewayNode -> routeExclusive(node, transitions)
+                is ParallelGatewayNode -> routeParallel(node, nodes, transitions)
+                is CallActivityNode -> executeCallActivity(node, currentId, transitions)
+                is SubProcessNode -> {
+                    executeSubProcess(node)
+                    nextSequence(currentId, transitions)
+                }
                 is EndNode -> return
                 else -> return
             }
         }
     }
 
-    private fun handleBusinessError(fromNodeId: String, errorCode: String?): String {
+    private fun handleBusinessError(
+        fromNodeId: String,
+        errorCode: String?,
+        transitions: List<Transition>
+    ): String {
         if (errorCode == null) throw IllegalStateException("Business error without code")
-        val t = def.transitions.firstOrNull {
+        val t = transitions.firstOrNull {
             it.fromId == fromNodeId && it.errorCode == errorCode
         } ?: throw BpmnBusinessError(errorCode, "No boundary transition for errorCode=$errorCode at $fromNodeId")
         return t.toId
+    }
+
+    private fun executeSubProcess(sp: SubProcessNode) {
+        val nodeById = sp.nodes.associateBy { it.id }
+        var currentId = sp.startNodeId
+
+        while (true) {
+            val node = nodeById[currentId]
+                ?: error("Unknown subprocess node id: $currentId in ${sp.id}")
+            currentId = when (node) {
+                is StartNode -> nextSequence(currentId, sp.transitions)
+                is UserTaskNode -> {
+                    waitForUserTask(node)
+                    nextSequence(currentId, sp.transitions)
+                }
+                is ServiceTaskNode -> executeServiceTask(node, currentId, sp.transitions)
+                is ScriptTaskNode -> executeScriptTask(node, currentId, sp.transitions)
+                is ExclusiveGatewayNode -> routeExclusive(node, sp.transitions)
+                is ParallelGatewayNode -> routeParallel(node, sp.nodes, sp.transitions)
+                is CallActivityNode -> executeCallActivity(node, currentId, sp.transitions)
+                is SubProcessNode -> {
+                    executeSubProcess(node)
+                    nextSequence(currentId, sp.transitions)
+                }
+                is TimerBoundaryNode -> {
+                    Workflow.sleep(parseDuration(node.durationExpression))
+                    nextSequence(currentId, sp.transitions)
+                }
+                is EndNode -> return
+            }
+        }
     }
 
     private fun parseDuration(expr: String): Duration {

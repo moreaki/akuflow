@@ -95,5 +95,6 @@ class BpmnDeploymentController(
         is ParallelGatewayNode -> "parallelGateway"
         is CallActivityNode -> "callActivity"
         is TimerBoundaryNode -> "timerBoundary"
+        is SubProcessNode -> "subProcess"
     }
 }

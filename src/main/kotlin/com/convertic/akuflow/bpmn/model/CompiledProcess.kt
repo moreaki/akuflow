@@ -36,7 +36,8 @@ enum class EventStartType { TIMER, MESSAGE, SIGNAL }
     JsonSubTypes.Type(value = ExclusiveGatewayNode::class, name = "exclusiveGateway"),
     JsonSubTypes.Type(value = ParallelGatewayNode::class, name = "parallelGateway"),
     JsonSubTypes.Type(value = CallActivityNode::class, name = "callActivity"),
-    JsonSubTypes.Type(value = TimerBoundaryNode::class, name = "timerBoundary")
+    JsonSubTypes.Type(value = TimerBoundaryNode::class, name = "timerBoundary"),
+    JsonSubTypes.Type(value = SubProcessNode::class, name = "subProcess")
 )
 sealed interface Node {
     val id: String
@@ -102,6 +103,14 @@ data class CallActivityNode(
     val calledProcessKey: String,
     val inMappings: List<VariableMapping>,
     val outMappings: List<VariableMapping>
+) : Node
+
+data class SubProcessNode(
+    override val id: String,
+    override val name: String,
+    val startNodeId: String,
+    val nodes: List<Node>,
+    val transitions: List<Transition>
 ) : Node
 
 data class VariableMapping(
