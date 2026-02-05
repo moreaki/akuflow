@@ -2,6 +2,7 @@ package com.convertic.akuflow.api
 
 import com.convertic.akuflow.bpmn.runtime.BpmnCompilationException
 import com.convertic.akuflow.bpmn.runtime.DefinitionNotFoundException
+import io.temporal.client.WorkflowNotFoundException
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ProblemDetail
@@ -20,6 +21,10 @@ class ApiExceptionHandler {
     @ExceptionHandler(BpmnCompilationException::class, IllegalArgumentException::class)
     fun handleBadRequest(ex: RuntimeException): ResponseEntity<ProblemDetail> =
         problem(HttpStatus.BAD_REQUEST, ex.message ?: "Bad request")
+
+    @ExceptionHandler(WorkflowNotFoundException::class)
+    fun handleWorkflowNotFound(ex: WorkflowNotFoundException): ResponseEntity<ProblemDetail> =
+        problem(HttpStatus.NOT_FOUND, ex.message ?: "Workflow not found")
 
     @ExceptionHandler(Exception::class)
     fun handleServerError(ex: Exception): ResponseEntity<ProblemDetail> =

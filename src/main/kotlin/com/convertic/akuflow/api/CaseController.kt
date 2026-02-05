@@ -4,6 +4,7 @@ import com.convertic.akuflow.bpmn.runtime.BpmnDefinitionService
 import com.convertic.akuflow.temporal.workflows.BpmnWorkflow
 import io.temporal.client.WorkflowClient
 import io.temporal.client.WorkflowOptions
+import io.temporal.client.WorkflowStub
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.*
 import java.util.*
@@ -30,6 +31,17 @@ class CaseController(
         val version: Int
     )
 
+    data class WorkflowStatusResponse(
+        val workflowId: String,
+        val runId: String?,
+        val status: String,
+        val workflowType: String?,
+        val taskQueue: String?,
+        val startTime: String?,
+        val executionTime: String?,
+        val closeTime: String?
+    )
+
     @PostMapping(
         consumes = [MediaType.APPLICATION_JSON_VALUE],
         produces = [MediaType.APPLICATION_JSON_VALUE]
@@ -51,6 +63,24 @@ class CaseController(
             workflowId = workflowId,
             processKey = def.processKey,
             version = def.version
+        )
+    }
+
+    @GetMapping("/{workflowId}", produces = [MediaType.APPLICATION_JSON_VALUE])
+    fun getStatus(@PathVariable workflowId: String): WorkflowStatusResponse {
+        val stub: WorkflowStub = workflowClient.newUntypedWorkflowStub(workflowId)
+        val desc = stub.describe()
+        val exec = desc.execution
+
+        return WorkflowStatusResponse(
+            workflowId = exec.workflowId,
+            runId = exec.runId,
+            status = desc.status.name,
+            workflowType = desc.workflowType,
+            taskQueue = desc.taskQueue,
+            startTime = desc.startTime.toString(),
+            executionTime = desc.executionTime.toString(),
+            closeTime = desc.closeTime?.toString()
         )
     }
 }
