@@ -16,6 +16,7 @@ class CaseController(
 
     data class StartCaseRequest(
         val processKey: String,
+        val version: Int? = null,
         val initialVars: Map<String, Any?> = emptyMap()
     )
 
@@ -27,7 +28,8 @@ class CaseController(
 
     @PostMapping
     fun startCase(@RequestBody req: StartCaseRequest): StartCaseResponse {
-        val def = definitionService.latestActive(req.processKey)
+        val def = req.version?.let { definitionService.byVersion(req.processKey, it) }
+            ?: definitionService.latestActive(req.processKey)
         val workflowId = "${def.processKey}-${def.version}-${UUID.randomUUID()}"
 
         val options = WorkflowOptions.newBuilder()

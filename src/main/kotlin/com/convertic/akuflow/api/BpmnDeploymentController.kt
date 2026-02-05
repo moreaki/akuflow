@@ -63,6 +63,10 @@ class BpmnDeploymentController(
         )
     }
 
+    @GetMapping("/definitions", produces = [MediaType.APPLICATION_JSON_VALUE])
+    fun listDefinitions(): List<BpmnDefinitionService.DefinitionSummary> =
+        definitionService.listDefinitions()
+
     private fun buildSummary(def: CompiledProcess): ConversionSummary {
         val nodesByType = def.nodes.groupingBy { nodeTypeKey(it) }.eachCount()
         return ConversionSummary(
