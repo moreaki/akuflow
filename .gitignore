@@ -1,8 +1,36 @@
-# Compiled class file
+# JVM / Java
 *.class
+hs_err_pid*
+replay_pid*
 
-# Log file
+# Logs
 *.log
+
+# Build outputs
+/build/
+/out/
+
+# Gradle
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Kotlin
+.kotlin/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Archives
 *.jar
 *.war
 *.nar
@@ -11,10 +39,6 @@
 *.tar.gz
 *.rar
 
-hs_err_pid*
-replay_pid*
-
-.kotlin/
-.gradle/
 build/
 /.idea/gradle.xml
+/.idea/misc.xml
