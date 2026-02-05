@@ -22,6 +22,7 @@ dependencies {
     implementation(libs.spring.boot.starter.data.jpa)
 
     implementation(libs.jackson.module.kotlin)
+    implementation(libs.springdoc.openapi.webmvc.ui)
 
     implementation(libs.temporal.spring.boot.starter)
     implementation(libs.camunda.bpmn.model)

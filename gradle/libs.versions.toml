@@ -7,6 +7,7 @@ camunda-model   = "7.21.0"
 groovy          = "3.0.21"
 jackson-kotlin  = "2.17.2"
 postgres        = "42.7.4"
+springdoc       = "2.6.0"
 
 [libraries]
 spring-boot-starter-web      = { module = "org.springframework.boot:spring-boot-starter-web", version.ref = "spring-boot" }
@@ -20,6 +21,8 @@ temporal-spring-boot-starter = { module = "io.temporal:temporal-spring-boot-star
 camunda-bpmn-model           = { module = "org.camunda.bpm.model:camunda-bpmn-model", version.ref = "camunda-model" }
 
 groovy-all                   = { module = "org.codehaus.groovy:groovy", version.ref = "groovy" }
+
+springdoc-openapi-webmvc-ui  = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
 
 postgresql                   = { module = "org.postgresql:postgresql", version.ref = "postgres" }
 
