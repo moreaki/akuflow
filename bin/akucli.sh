@@ -20,7 +20,7 @@ Usage:
 
 Examples:
   ./bin/akucli.sh list
-  ./bin/akucli.sh deploy --model=/src/test/resources/bpmn/TestProcess.bpmn20.xml
+  ./bin/akucli.sh deploy --model=./src/test/resources/bpmn/TestProcess.bpmn20.xml
   ./bin/akucli.sh run --processKey=CaseIdLogger --version=2 --vars='{"caseId":"123"}'
 USAGE
 }
