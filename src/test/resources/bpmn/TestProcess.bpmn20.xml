@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0b5j83g" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.43.1" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.24.0">
+  <bpmn:process id="CaseIdLogger" name="Input caseId and log it" isExecutable="true" camunda:versionTag="20260204.01" camunda:historyTimeToLive="P365D">
+    <bpmn:documentation>Input caseId and log it</bpmn:documentation>
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_1iivv66</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:subProcess id="Activity_04x4dat" name="This is a test process">
+      <bpmn:incoming>Flow_1iivv66</bpmn:incoming>
+      <bpmn:outgoing>Flow_0mqvbcx</bpmn:outgoing>
+      <bpmn:startEvent id="Event_1k46lga">
+        <bpmn:outgoing>Flow_1ucm1s2</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:userTask id="Activity_10ek3uz" name="Input CaseId">
+        <bpmn:extensionElements>
+          <camunda:formData>
+            <camunda:formField id="caseIdOrig" label="CaseId" type="string">
+              <camunda:validation>
+                <camunda:constraint name="required" />
+              </camunda:validation>
+            </camunda:formField>
+          </camunda:formData>
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_1ucm1s2</bpmn:incoming>
+        <bpmn:outgoing>Flow_0pe1acs</bpmn:outgoing>
+      </bpmn:userTask>
+      <bpmn:endEvent id="Event_1jwh41w">
+        <bpmn:incoming>Flow_11st808</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="Flow_0pe1acs" sourceRef="Activity_10ek3uz" targetRef="Activity_12c4f3t" />
+      <bpmn:scriptTask id="Activity_12c4f3t" name="Log it" scriptFormat="Groovy">
+        <bpmn:documentation>fwsdfsdfdsf</bpmn:documentation>
+        <bpmn:incoming>Flow_0pe1acs</bpmn:incoming>
+        <bpmn:outgoing>Flow_11st808</bpmn:outgoing>
+        <bpmn:script>def logPrefix = "Cleanup case"
+def caseId = "1111-1111-1111-1111"
+logService.log(caseId, "${logPrefix} for id: ${caseIdOrig}")</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:sequenceFlow id="Flow_1ucm1s2" sourceRef="Event_1k46lga" targetRef="Activity_10ek3uz" />
+      <bpmn:sequenceFlow id="Flow_11st808" sourceRef="Activity_12c4f3t" targetRef="Event_1jwh41w" />
+    </bpmn:subProcess>
+    <bpmn:sequenceFlow id="Flow_1iivv66" sourceRef="StartEvent_1" targetRef="Activity_04x4dat" />
+    <bpmn:endEvent id="Event_1d80vgf">
+      <bpmn:incoming>Flow_0mqvbcx</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0mqvbcx" sourceRef="Activity_04x4dat" targetRef="Event_1d80vgf" />
+  </bpmn:process>
+  <bpmn:error id="Error_02g0gh1" name="CASE_WITH_PURPOSE_ALREADY_EXISTS" errorCode="CASE_WITH_PURPOSE_ALREADY_EXISTS" camunda:errorMessage="CASE_WITH_PURPOSE_ALREADY_EXISTS" />
+  <bpmn:error id="Error_1s1s8jv" name="MISSING_PARAMETERS" errorCode="MISSING_PARAMETERS" camunda:errorMessage="Missing Parameters: legalEntityUID and/or commercialRegisterId and/or legalEntityName" />
+  <bpmn:error id="Error_1h81rpw" name="CYCLE_START_FAILED" errorCode="CYCLE_START_FAILED" camunda:errorMessage="CYCLE_START_FAILED" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="CaseIdLogger">
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="152" y="162" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_04x4dat_di" bpmnElement="Activity_04x4dat" isExpanded="true">
+        <dc:Bounds x="310" y="75" width="670" height="210" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1k46lga_di" bpmnElement="Event_1k46lga">
+        <dc:Bounds x="350" y="157" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0ron0tt_di" bpmnElement="Activity_10ek3uz">
+        <dc:Bounds x="490" y="135" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1jwh41w_di" bpmnElement="Event_1jwh41w">
+        <dc:Bounds x="872" y="157" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1snq8qo_di" bpmnElement="Activity_12c4f3t">
+        <dc:Bounds x="680" y="135" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0pe1acs_di" bpmnElement="Flow_0pe1acs">
+        <di:waypoint x="590" y="175" />
+        <di:waypoint x="680" y="175" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ucm1s2_di" bpmnElement="Flow_1ucm1s2">
+        <di:waypoint x="386" y="175" />
+        <di:waypoint x="490" y="175" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_11st808_di" bpmnElement="Flow_11st808">
+        <di:waypoint x="780" y="175" />
+        <di:waypoint x="872" y="175" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Event_1d80vgf_di" bpmnElement="Event_1d80vgf">
+        <dc:Bounds x="1092" y="162" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1iivv66_di" bpmnElement="Flow_1iivv66">
+        <di:waypoint x="188" y="180" />
+        <di:waypoint x="310" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0mqvbcx_di" bpmnElement="Flow_0mqvbcx">
+        <di:waypoint x="980" y="180" />
+        <di:waypoint x="1092" y="180" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
