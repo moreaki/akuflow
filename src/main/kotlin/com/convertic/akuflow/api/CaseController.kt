@@ -2,6 +2,7 @@ package com.convertic.akuflow.api
 
 import com.convertic.akuflow.bpmn.runtime.BpmnDefinitionService
 import com.convertic.akuflow.temporal.workflows.BpmnWorkflow
+import com.convertic.akuflow.temporal.workflows.BpmnWorkflowState
 import io.temporal.api.workflowservice.v1.ListWorkflowExecutionsRequest
 import io.temporal.client.WorkflowClient
 import io.temporal.client.WorkflowOptions
@@ -41,6 +42,11 @@ class CaseController(
         val startTime: String?,
         val executionTime: String?,
         val closeTime: String?
+    )
+
+    data class WorkflowStateResponse(
+        val workflowId: String,
+        val state: BpmnWorkflowState
     )
 
     @PostMapping(
@@ -83,6 +89,13 @@ class CaseController(
             executionTime = desc.executionTime.toString(),
             closeTime = desc.closeTime?.toString()
         )
+    }
+
+    @GetMapping("/{workflowId}/state", produces = [MediaType.APPLICATION_JSON_VALUE])
+    fun getState(@PathVariable workflowId: String): WorkflowStateResponse {
+        val stub = workflowClient.newWorkflowStub(BpmnWorkflow::class.java, workflowId)
+        val state = stub.getState()
+        return WorkflowStateResponse(workflowId = workflowId, state = state)
     }
 
     @GetMapping("/find", produces = [MediaType.APPLICATION_JSON_VALUE])

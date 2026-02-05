@@ -18,6 +18,7 @@ class BpmnWorkflowImpl : BpmnWorkflow {
     private lateinit var def: CompiledProcess
     private val vars = mutableMapOf<String, Any?>()
     private val exprEval = ExpressionEvaluator()
+    private var currentNodeId: String? = null
 
     private val dispatcher = Workflow.newActivityStub(
         ServiceTaskDispatcherActivities::class.java,
@@ -53,6 +54,7 @@ class BpmnWorkflowImpl : BpmnWorkflow {
         var currentId = def.startNodeId
 
         while (true) {
+            currentNodeId = currentId
             val node = nodeById[currentId] ?: error("Unknown node id: $currentId")
 
             currentId = when (node) {
@@ -92,6 +94,19 @@ class BpmnWorkflowImpl : BpmnWorkflow {
     override fun receiveMessage(messageName: String, payload: Map<String, Any?>) {
         pendingMessages += messageName to payload
     }
+
+    override fun getState(): BpmnWorkflowState =
+        BpmnWorkflowState(
+            status = if (pendingUserTaskId != null && userTaskPayload == null) {
+                "WAITING_USER_TASK"
+            } else {
+                "RUNNING"
+            },
+            currentNodeId = currentNodeId,
+            pendingUserTaskId = pendingUserTaskId,
+            pendingSignals = pendingSignals.size,
+            pendingMessages = pendingMessages.size
+        )
 
     private fun waitForUserTask(node: UserTaskNode) {
         pendingUserTaskId = node.id
@@ -245,6 +260,7 @@ class BpmnWorkflowImpl : BpmnWorkflow {
         var currentId = sp.startNodeId
 
         while (true) {
+            currentNodeId = currentId
             val node = nodeById[currentId]
                 ?: error("Unknown subprocess node id: $currentId in ${sp.id}")
             currentId = when (node) {
