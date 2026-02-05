@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]:-$0}"
+PRJ_ROOT="$(cd "$(dirname -- "${SOURCE}")/.." && pwd -P)"
+
+BASE_URL="${BASE_URL:-http://localhost:8081}"
+
+die() {
+  echo "$*" >&2
+  exit 1
+}
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./bin/akucli.sh list [--base-url=URL] [--json]
+  ./bin/akucli.sh deploy --model=PATH [--processKey=KEY] [--base-url=URL]
+  ./bin/akucli.sh run --processKey=KEY --version=N [--vars=JSON] [--vars-file=PATH] [--base-url=URL]
+
+Examples:
+  ./bin/akucli.sh list
+  ./bin/akucli.sh deploy --model=./path/to/CaseIdLogger.bpmn20.xml
+  ./bin/akucli.sh run --processKey=CaseIdLogger --version=2 --vars='{"caseId":"123"}'
+USAGE
+}
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
+}
+
+extract_attr() {
+  local file="$1"
+  local pattern="$2"
+  local attr="$3"
+  sed -rn -- "/$pattern/s/^.*${attr}=\"([^\"]*)\".*$/\\1/p" "$file" | head -n 1
+}
+
+json_payload() {
+  local file="$1"
+  local process_key="$2"
+  jq -Rs --arg processKey "$process_key" '{processKey:$processKey, xml:.}' "$file"
+}
+
+list_defs() {
+  local base_url="$BASE_URL"
+  local json=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --base-url=*) base_url="${1#*=}" ;;
+      --json) json=true ;;
+      -h|--help) usage; exit 0 ;;
+      *) die "Unknown option: $1" ;;
+    esac
+    shift
+  done
+
+  if [[ "$json" == "true" ]]; then
+    curl -sS "$base_url/api/bpmn/definitions" | jq .
+    return
+  fi
+
+  printf "processKey\tversion\tactive\tprocessName\tversionTag\tmodelerVersion\tinitialVars\n"
+  curl -sS "$base_url/api/bpmn/definitions" | jq -r '
+    .[] | [
+      .processKey,
+      .version,
+      .active,
+      (.processName // "n/a"),
+      (.versionTag // "n/a"),
+      (.modelerVersion // "n/a"),
+      (.initialVars | tojson)
+    ] | @tsv
+  '
+}
+
+deploy_model() {
+  local base_url="$BASE_URL"
+  local model=""
+  local process_key=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --base-url=*) base_url="${1#*=}" ;;
+      --model=*) model="${1#*=}" ;;
+      --processKey=*) process_key="${1#*=}" ;;
+      -h|--help) usage; exit 0 ;;
+      *) die "Unknown option: $1" ;;
+    esac
+    shift
+  done
+
+  [[ -n "$model" ]] || die "Missing --model=PATH"
+  [[ -f "$model" ]] || die "Model file not found: $model"
+
+  if [[ -z "$process_key" ]]; then
+    process_key="$(extract_attr "$model" "<bpmn:process" "id")"
+    if [[ -z "$process_key" ]]; then
+      process_key="$(basename "$model")"
+      process_key="${process_key%.*}"
+    fi
+  fi
+
+  json_payload "$model" "$process_key" | curl -sS -f -X POST "$base_url/api/bpmn/deploy" \
+    -H "Content-Type: application/json" \
+    -d @- | jq .
+}
+
+run_case() {
+  local base_url="$BASE_URL"
+  local process_key=""
+  local version=""
+  local vars="{}"
+  local vars_file=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --base-url=*) base_url="${1#*=}" ;;
+      --processKey=*) process_key="${1#*=}" ;;
+      --version=*) version="${1#*=}" ;;
+      --vars=*) vars="${1#*=}" ;;
+      --vars-file=*) vars_file="${1#*=}" ;;
+      -h|--help) usage; exit 0 ;;
+      *) die "Unknown option: $1" ;;
+    esac
+    shift
+  done
+
+  [[ -n "$process_key" ]] || die "Missing --processKey=KEY"
+  [[ -n "$version" ]] || die "Missing --version=N"
+
+  if [[ -n "$vars_file" ]]; then
+    [[ -f "$vars_file" ]] || die "Vars file not found: $vars_file"
+    vars="$(cat "$vars_file")"
+  fi
+
+  if ! jq -e . >/dev/null 2>&1 <<<"$vars"; then
+    die "Invalid JSON for --vars or --vars-file"
+  fi
+
+  jq -n --arg processKey "$process_key" --arg version "$version" --argjson initialVars "$vars" \
+    '{processKey:$processKey, version:($version|tonumber), initialVars:$initialVars}' \
+    | curl -sS -f -X POST "$base_url/api/cases" \
+      -H "Content-Type: application/json" \
+      -d @- | jq .
+}
+
+require_cmd curl
+require_cmd jq
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  list) list_defs "$@" ;;
+  deploy) deploy_model "$@" ;;
+  run) run_case "$@" ;;
+  -h|--help|"") usage ;;
+  *) die "Unknown command: $cmd" ;;
+esac
