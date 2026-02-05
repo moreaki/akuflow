@@ -23,7 +23,7 @@ class TemporalConfig {
     fun workflowClient(serviceStubs: WorkflowServiceStubs): WorkflowClient =
         WorkflowClient.newInstance(serviceStubs)
 
-    @Bean
+    @Bean(destroyMethod = "shutdown")
     fun workerFactory(client: WorkflowClient): WorkerFactory =
         WorkerFactory.newInstance(client)
 
@@ -33,7 +33,7 @@ class TemporalConfig {
      *
      * Bean is started when the context is ready, and shut down on close.
      */
-    @Bean(initMethod = "start", destroyMethod = "shutdown")
+    @Bean(initMethod = "start", destroyMethod = "")
     fun akuflowBpmnWorker(
         workerFactory: WorkerFactory,
         serviceTaskDispatcherActivitiesImpl: ServiceTaskDispatcherActivitiesImpl,
