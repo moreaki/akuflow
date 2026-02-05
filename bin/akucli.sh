@@ -42,20 +42,17 @@ request_json() {
   local method="$1"
   local url="$2"
   local data="${3:-}"
-  local response status body
+  local response
 
   if [[ -n "$data" ]]; then
     response="$(curl -sS -H "Accept: application/json" -H "Content-Type: application/json" \
-      -X "$method" -d "$data" -w "\n%{http_code}" "$url")"
+      -X "$method" -d "$data" -w "\n%{http_code}" "$url")" || return 1
   else
     response="$(curl -sS -H "Accept: application/json" \
-      -X "$method" -w "\n%{http_code}" "$url")"
+      -X "$method" -w "\n%{http_code}" "$url")" || return 1
   fi
 
-  status="${response##*$'\n'}"
-  body="${response%$'\n'*}"
-
-  echo "$status"$'\n'"$body"
+  printf '%s' "$response"
 }
 
 extract_attr() {
@@ -85,8 +82,11 @@ list_defs() {
     shift
   done
 
-  local status body
-  read -r status body < <(request_json "GET" "$base_url/api/bpmn/definitions")
+  local response status body
+  response="$(request_json "GET" "$base_url/api/bpmn/definitions")" \
+    || die "Request failed (could not reach server): $base_url/api/bpmn/definitions"
+  status="${response##*$'\n'}"
+  body="${response%$'\n'*}"
 
   if [[ "$status" != "200" ]]; then
     echo "Request failed with status $status" >&2
@@ -146,9 +146,12 @@ deploy_model() {
     fi
   fi
 
-  local payload status body
+  local payload response status body
   payload="$(json_payload "$model" "$process_key")"
-  read -r status body < <(request_json "POST" "$base_url/api/bpmn/deploy" "$payload")
+  response="$(request_json "POST" "$base_url/api/bpmn/deploy" "$payload")" \
+    || die "Request failed (could not reach server): $base_url/api/bpmn/deploy"
+  status="${response##*$'\n'}"
+  body="${response%$'\n'*}"
 
   if [[ "$status" =~ ^2 ]]; then
     print_body "$body"
@@ -191,10 +194,13 @@ run_case() {
     die "Invalid JSON for --vars or --vars-file"
   fi
 
-  local payload status body
+  local payload response status body
   payload="$(jq -n --arg processKey "$process_key" --arg version "$version" --argjson initialVars "$vars" \
     '{processKey:$processKey, version:($version|tonumber), initialVars:$initialVars}')"
-  read -r status body < <(request_json "POST" "$base_url/api/cases" "$payload")
+  response="$(request_json "POST" "$base_url/api/cases" "$payload")" \
+    || die "Request failed (could not reach server): $base_url/api/cases"
+  status="${response##*$'\n'}"
+  body="${response%$'\n'*}"
 
   if [[ "$status" =~ ^2 ]]; then
     print_body "$body"
