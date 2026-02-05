@@ -1,5 +1,8 @@
 package com.convertic.akuflow.bpmn.model
 
+import com.fasterxml.jackson.annotation.JsonSubTypes
+import com.fasterxml.jackson.annotation.JsonTypeInfo
+
 data class CompiledProcess(
     val processKey: String,
     val version: Int,
@@ -19,6 +22,22 @@ data class EventSubprocess(
 
 enum class EventStartType { TIMER, MESSAGE, SIGNAL }
 
+@JsonTypeInfo(
+    use = JsonTypeInfo.Id.NAME,
+    include = JsonTypeInfo.As.PROPERTY,
+    property = "type"
+)
+@JsonSubTypes(
+    JsonSubTypes.Type(value = StartNode::class, name = "startEvent"),
+    JsonSubTypes.Type(value = EndNode::class, name = "endEvent"),
+    JsonSubTypes.Type(value = UserTaskNode::class, name = "userTask"),
+    JsonSubTypes.Type(value = ServiceTaskNode::class, name = "serviceTask"),
+    JsonSubTypes.Type(value = ScriptTaskNode::class, name = "scriptTask"),
+    JsonSubTypes.Type(value = ExclusiveGatewayNode::class, name = "exclusiveGateway"),
+    JsonSubTypes.Type(value = ParallelGatewayNode::class, name = "parallelGateway"),
+    JsonSubTypes.Type(value = CallActivityNode::class, name = "callActivity"),
+    JsonSubTypes.Type(value = TimerBoundaryNode::class, name = "timerBoundary")
+)
 sealed interface Node {
     val id: String
     val name: String

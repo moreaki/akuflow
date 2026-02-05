@@ -76,7 +76,6 @@ class BpmnDefinitionService(
         repo.findAllByOrderByProcessKeyAscVersionDesc()
             .map { entity ->
                 val meta = parseBpmnMetadata(entity.xml)
-                val compiled = compiler.fromJson(entity.compiledJson)
                 DefinitionSummary(
                     processKey = entity.processKey,
                     version = entity.version,
@@ -86,20 +85,20 @@ class BpmnDefinitionService(
                     processName = meta.processName ?: meta.bpmnProcessId,
                     versionTag = meta.versionTag,
                     modelerVersion = meta.modelerVersion,
-                    compiledProcessKey = compiled.processKey
+                    compiledProcessKey = meta.bpmnProcessId ?: entity.processKey
                 )
             }
 
     fun latestActive(processKey: String): CompiledProcess {
         val entity = repo.findTopByProcessKeyAndActiveIsTrueOrderByVersionDesc(processKey)
             ?: throw DefinitionNotFoundException("No active definition for processKey=$processKey")
-        return compiler.fromJson(entity.compiledJson)
+        return loadCompiled(entity)
     }
 
     fun byVersion(processKey: String, version: Int): CompiledProcess {
         val entity = repo.findByProcessKeyAndVersion(processKey, version)
             ?: throw DefinitionNotFoundException("No definition for processKey=$processKey and version=$version")
-        return compiler.fromJson(entity.compiledJson)
+        return loadCompiled(entity)
     }
 
     private fun parseBpmnMetadata(xml: String): BpmnMetadata =
@@ -109,4 +108,11 @@ class BpmnDefinitionService(
             versionTag = versionTagRegex.find(xml)?.groupValues?.get(1),
             modelerVersion = modelerVersionRegex.find(xml)?.groupValues?.get(1)
         )
+
+    private fun loadCompiled(entity: BpmnProcessDefinitionEntity): CompiledProcess =
+        try {
+            compiler.fromJson(entity.compiledJson)
+        } catch (e: RuntimeException) {
+            compiler.compile(entity.processKey, entity.xml, entity.version)
+        }
 }
