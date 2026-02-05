@@ -17,19 +17,22 @@ Usage:
   ./bin/akucli.sh list [--base-url=URL] [--json]
   ./bin/akucli.sh deploy --model=PATH [--processKey=KEY] [--base-url=URL]
   ./bin/akucli.sh run --processKey=KEY --version=N [--vars=JSON] [--vars-file=PATH] [--base-url=URL]
-  ./bin/akucli.sh status --workflowId=ID [--base-url=URL] [--json]
-  ./bin/akucli.sh status --processKey=KEY --version=N [--base-url=URL] [--json]
-  ./bin/akucli.sh state --workflowId=ID [--base-url=URL] [--json]
-  ./bin/akucli.sh state --processKey=KEY --version=N [--base-url=URL] [--json]
+  ./bin/akucli.sh lifecycle --workflowId=ID [--base-url=URL] [--json]
+  ./bin/akucli.sh lifecycle --processKey=KEY --version=N [--base-url=URL] [--json]
+  ./bin/akucli.sh runtime --workflowId=ID [--base-url=URL] [--json]
+  ./bin/akucli.sh runtime --processKey=KEY --version=N [--base-url=URL] [--json]
+  ./bin/akucli.sh inspect --workflowId=ID [--base-url=URL] [--json]
+  ./bin/akucli.sh inspect --processKey=KEY --version=N [--base-url=URL] [--json]
 
 Examples:
   ./bin/akucli.sh list
   ./bin/akucli.sh deploy --model=./src/test/resources/bpmn/TestProcess.bpmn20.xml
   ./bin/akucli.sh run --processKey=CaseIdLogger --version=2 --vars='{"caseId":"123"}'
-  ./bin/akucli.sh status --workflowId=CaseIdLogger-2-acde1234...
-  ./bin/akucli.sh status --processKey=CaseIdLogger --version=2
-  ./bin/akucli.sh state --workflowId=CaseIdLogger-2-acde1234...
-  ./bin/akucli.sh state --processKey=CaseIdLogger --version=2
+  ./bin/akucli.sh lifecycle --workflowId=CaseIdLogger-2-acde1234...
+  ./bin/akucli.sh lifecycle --processKey=CaseIdLogger --version=2
+  ./bin/akucli.sh runtime --workflowId=CaseIdLogger-2-acde1234...
+  ./bin/akucli.sh runtime --processKey=CaseIdLogger --version=2
+  ./bin/akucli.sh inspect --processKey=CaseIdLogger --version=2
 USAGE
 }
 
@@ -219,7 +222,7 @@ run_case() {
   fi
 }
 
-status_case() {
+lifecycle_case() {
   local base_url="$BASE_URL"
   local workflow_id=""
   local json=false
@@ -274,16 +277,16 @@ status_case() {
     ' <<<"$body"
   else
     if [[ -n "$workflow_id" ]]; then
-      echo "Status failed with status $status (workflowId=$workflow_id)" >&2
+      echo "Lifecycle failed with status $status (workflowId=$workflow_id)" >&2
     else
-      echo "Status failed with status $status (processKey=$process_key version=$version)" >&2
+      echo "Lifecycle failed with status $status (processKey=$process_key version=$version)" >&2
     fi
     print_body "$body" >&2
     exit 1
   fi
 }
 
-state_case() {
+runtime_case() {
   local base_url="$BASE_URL"
   local workflow_id=""
   local json=false
@@ -348,13 +351,112 @@ state_case() {
     ' <<<"$state_json"
   else
     if [[ -n "$workflow_id" ]]; then
-      echo "State failed with status $status (workflowId=$workflow_id)" >&2
+      echo "Runtime failed with status $status (workflowId=$workflow_id)" >&2
     else
-      echo "State failed with status $status (processKey=$process_key version=$version)" >&2
+      echo "Runtime failed with status $status (processKey=$process_key version=$version)" >&2
     fi
     print_body "$body" >&2
     exit 1
   fi
+}
+
+inspect_case() {
+  local base_url="$BASE_URL"
+  local workflow_id=""
+  local json=false
+  local process_key=""
+  local version=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --base-url=*) base_url="${1#*=}" ;;
+      --workflowId=*) workflow_id="${1#*=}" ;;
+      --processKey=*) process_key="${1#*=}" ;;
+      --version=*) version="${1#*=}" ;;
+      --json) json=true ;;
+      -h|--help) usage; exit 0 ;;
+      *) die "Unknown option: $1" ;;
+    esac
+    shift
+  done
+
+  local status_url state_url response status body
+  if [[ -n "$workflow_id" ]]; then
+    status_url="$base_url/api/cases/$workflow_id"
+    state_url="$base_url/api/cases/$workflow_id/state"
+  else
+    [[ -n "$process_key" ]] || die "Missing --processKey=KEY"
+    [[ -n "$version" ]] || die "Missing --version=N"
+    status_url="$base_url/api/cases/find?processKey=$process_key&version=$version"
+    response="$(request_json "GET" "$status_url")" \
+      || die "Request failed (could not reach server): $status_url"
+    status="${response##*$'\n'}"
+    body="${response%$'\n'*}"
+    if [[ ! "$status" =~ ^2 ]]; then
+      echo "Inspect failed with status $status (processKey=$process_key version=$version)" >&2
+      print_body "$body" >&2
+      exit 1
+    fi
+    workflow_id="$(jq -r '.workflowId' <<<"$body")"
+    status_url="$base_url/api/cases/$workflow_id"
+    state_url="$base_url/api/cases/$workflow_id/state"
+  fi
+
+  local status_resp status_body state_resp state_body
+  status_resp="$(request_json "GET" "$status_url")" \
+    || die "Request failed (could not reach server): $status_url"
+  status="${status_resp##*$'\n'}"
+  status_body="${status_resp%$'\n'*}"
+  if [[ ! "$status" =~ ^2 ]]; then
+    echo "Inspect failed with status $status (workflowId=$workflow_id)" >&2
+    print_body "$status_body" >&2
+    exit 1
+  fi
+
+  state_resp="$(request_json "GET" "$state_url")" \
+    || die "Request failed (could not reach server): $state_url"
+  status="${state_resp##*$'\n'}"
+  state_body="${state_resp%$'\n'*}"
+  if [[ ! "$status" =~ ^2 ]]; then
+    echo "Inspect failed with status $status (workflowId=$workflow_id state)" >&2
+    print_body "$state_body" >&2
+    exit 1
+  fi
+
+  if [[ "$json" == "true" ]]; then
+    jq -n --argjson lifecycle "$status_body" --argjson runtime "$state_body" \
+      '{lifecycle:$lifecycle, runtime:$runtime}'
+    return
+  fi
+
+  echo "Lifecycle"
+  printf "workflowId\tstatus\trunId\tworkflowType\ttaskQueue\tstartTime\texecutionTime\tcloseTime\n"
+  jq -r '
+    [
+      .workflowId,
+      .status,
+      (.runId // "n/a"),
+      (.workflowType // "n/a"),
+      (.taskQueue // "n/a"),
+      (.startTime // "n/a"),
+      (.executionTime // "n/a"),
+      (.closeTime // "n/a")
+    ] | @tsv
+  ' <<<"$status_body"
+
+  echo
+  echo "Runtime"
+  printf "workflowId\tstatus\tcurrentNodeId\tpendingUserTaskId\tpendingSignals\tpendingMessages\n"
+  jq -r '
+    [
+      .workflowId,
+      .state.status,
+      (.state.currentNodeId // "n/a"),
+      (.state.pendingUserTaskId // "n/a"),
+      (.state.pendingSignals | tostring),
+      (.state.pendingMessages | tostring)
+    ] | @tsv
+  ' <<<"$state_body"
 }
 require_cmd curl
 require_cmd jq
@@ -366,8 +468,9 @@ case "$cmd" in
   list) list_defs "$@" ;;
   deploy) deploy_model "$@" ;;
   run) run_case "$@" ;;
-  status) status_case "$@" ;;
-  state) state_case "$@" ;;
+  lifecycle) lifecycle_case "$@" ;;
+  runtime) runtime_case "$@" ;;
+  inspect) inspect_case "$@" ;;
   -h|--help|"") usage ;;
   *) die "Unknown command: $cmd" ;;
 esac
