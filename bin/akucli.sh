@@ -120,23 +120,7 @@ list_defs() {
     exit 1
   fi
 
-  if [[ "$json" == "true" ]]; then
-    print_body "$body"
-    return
-  fi
-
-  printf "processKey\tversion\tactive\tprocessName\tversionTag\tmodelerVersion\tinitialVars\n"
-  jq -r '
-    .[] | [
-      .processKey,
-      .version,
-      .active,
-      (.processName // "n/a"),
-      (.versionTag // "n/a"),
-      (.modelerVersion // "n/a"),
-      (.initialVars | tojson)
-    ] | @tsv
-  ' <<<"$body"
+  print_body "$body"
 }
 
 deploy_model() {
@@ -267,23 +251,7 @@ lifecycle_case() {
   body="${response%$'\n'*}"
 
   if [[ "$status" =~ ^2 ]]; then
-    if [[ "$json" == "true" ]]; then
-      print_body "$body"
-      return
-    fi
-    printf "workflowId\tstatus\trunId\tworkflowType\ttaskQueue\tstartTime\texecutionTime\tcloseTime\n"
-    jq -r '
-      [
-        .workflowId,
-        .status,
-        (.runId // "n/a"),
-        (.workflowType // "n/a"),
-        (.taskQueue // "n/a"),
-        (.startTime // "n/a"),
-        (.executionTime // "n/a"),
-        (.closeTime // "n/a")
-      ] | @tsv
-    ' <<<"$body"
+    print_body "$body"
   else
     if [[ -n "$workflow_id" ]]; then
       echo "Lifecycle failed with status $status (workflowId=$workflow_id)" >&2
@@ -331,11 +299,6 @@ runtime_case() {
   body="${response%$'\n'*}"
 
   if [[ "$status" =~ ^2 ]]; then
-    if [[ "$json" == "true" ]]; then
-      print_body "$body"
-      return
-    fi
-
     local state_json="$body"
     if [[ -z "$workflow_id" ]]; then
       local wid
@@ -347,17 +310,7 @@ runtime_case() {
       state_json="${response%$'\n'*}"
     fi
 
-    printf "workflowId\tstatus\tcurrentNodeId\tpendingUserTaskId\tpendingSignals\tpendingMessages\n"
-    jq -r '
-      [
-        .workflowId,
-        .state.status,
-        (.state.currentNodeId // "n/a"),
-        (.state.pendingUserTaskId // "n/a"),
-        (.state.pendingSignals | tostring),
-        (.state.pendingMessages | tostring)
-      ] | @tsv
-    ' <<<"$state_json"
+    print_body "$state_json"
   else
     if [[ -n "$workflow_id" ]]; then
       echo "Runtime failed with status $status (workflowId=$workflow_id)" >&2
@@ -432,40 +385,10 @@ inspect_case() {
     exit 1
   fi
 
-  if [[ "$json" == "true" ]]; then
-    jq -n --argjson lifecycle "$status_body" --argjson runtime "$state_body" \
-      '{lifecycle:$lifecycle, runtime:$runtime}'
-    return
-  fi
-
-  echo "Lifecycle"
-  printf "workflowId\tstatus\trunId\tworkflowType\ttaskQueue\tstartTime\texecutionTime\tcloseTime\n"
-  jq -r '
-    [
-      .workflowId,
-      .status,
-      (.runId // "n/a"),
-      (.workflowType // "n/a"),
-      (.taskQueue // "n/a"),
-      (.startTime // "n/a"),
-      (.executionTime // "n/a"),
-      (.closeTime // "n/a")
-    ] | @tsv
-  ' <<<"$status_body"
-
-  echo
-  echo "Runtime"
-  printf "workflowId\tstatus\tcurrentNodeId\tpendingUserTaskId\tpendingSignals\tpendingMessages\n"
-  jq -r '
-    [
-      .workflowId,
-      .state.status,
-      (.state.currentNodeId // "n/a"),
-      (.state.pendingUserTaskId // "n/a"),
-      (.state.pendingSignals | tostring),
-      (.state.pendingMessages | tostring)
-    ] | @tsv
-  ' <<<"$state_body"
+  local combined
+  combined="$(jq -n --argjson lifecycle "$status_body" --argjson runtime "$state_body" \
+    '{lifecycle:$lifecycle, runtime:$runtime}')"
+  print_body "$combined"
 }
 
 terminate_case() {
@@ -522,19 +445,7 @@ terminate_case() {
   body="${response%$'\n'*}"
 
   if [[ "$status" =~ ^2 ]]; then
-    if [[ "$json" == "true" ]]; then
-      print_body "$body"
-      return
-    fi
-    printf "workflowId\trunId\tstatus\treason\n"
-    jq -r '
-      .[] | [
-        .workflowId,
-        (.runId // "n/a"),
-        .status,
-        (.reason // "n/a")
-      ] | @tsv
-    ' <<<"$body"
+    print_body "$body"
   else
     if [[ -n "$workflow_id" ]]; then
       echo "Terminate failed with status $status (workflowId=$workflow_id)" >&2
@@ -597,34 +508,7 @@ task_info() {
   body="${response%$'\n'*}"
 
   if [[ "$status" =~ ^2 ]]; then
-    if [[ "$json" == "true" ]]; then
-      print_body "$body"
-      return
-    fi
-    echo "Task"
-    printf "workflowId\ttaskId\tname\tformKey\tisPending\n"
-    jq -r '
-      [
-        .workflowId,
-        .taskId,
-        .name,
-        (.formKey // "n/a"),
-        (.isPending | tostring)
-      ] | @tsv
-    ' <<<"$body"
-    echo
-    echo "Fields"
-    printf "id\tlabel\ttype\trequired\treadOnly\tdefaultValue\n"
-    jq -r '
-      .formFields[]? | [
-        .id,
-        (.label // "n/a"),
-        (.type // "n/a"),
-        (.required | tostring),
-        (.readOnly | tostring),
-        (.defaultValue // "n/a")
-      ] | @tsv
-    ' <<<"$body"
+    print_body "$body"
   else
     if [[ -n "$workflow_id" ]]; then
       echo "Task failed with status $status (workflowId=$workflow_id taskId=$task_id)" >&2
