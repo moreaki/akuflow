@@ -54,7 +54,8 @@ class CaseController(
         val workflowId: String? = null,
         val processKey: String? = null,
         val version: Int? = null,
-        val reason: String? = null
+        val reason: String? = null,
+        val allRunning: Boolean? = null
     )
 
     data class TerminateResult(
@@ -152,7 +153,11 @@ class CaseController(
 
     @PostMapping("/terminate", consumes = [MediaType.APPLICATION_JSON_VALUE])
     fun terminate(@RequestBody req: TerminateRequest): List<TerminateResult> {
-        if (req.workflowId.isNullOrBlank() && req.processKey.isNullOrBlank()) {
+        if (req.allRunning == true) {
+            if (!req.workflowId.isNullOrBlank() || !req.processKey.isNullOrBlank()) {
+                throw IllegalArgumentException("allRunning cannot be combined with workflowId or processKey")
+            }
+        } else if (req.workflowId.isNullOrBlank() && req.processKey.isNullOrBlank()) {
             throw IllegalArgumentException("Either workflowId or processKey must be provided")
         }
         if (!req.processKey.isNullOrBlank() && req.version == null) {
@@ -162,6 +167,7 @@ class CaseController(
         val reason = req.reason ?: "Terminated by request"
 
         return when {
+            req.allRunning == true -> terminateAllRunning(reason)
             !req.workflowId.isNullOrBlank() -> {
                 val stub: WorkflowStub = workflowClient.newUntypedWorkflowStub(req.workflowId)
                 stub.terminate(reason)
@@ -195,6 +201,37 @@ class CaseController(
             throw WorkflowRunNotFoundException(
                 "No running workflows found for processKey=$processKey and version=$version"
             )
+        }
+
+        return executions.map { info ->
+            val exec = info.execution
+            val target = WorkflowTargetOptions.newBuilder()
+                .setWorkflowId(exec.workflowId)
+                .setRunId(exec.runId)
+                .build()
+            val stub: WorkflowStub = workflowClient.newUntypedWorkflowStub(target)
+            stub.terminate(reason)
+            TerminateResult(exec.workflowId, exec.runId, "TERMINATED", reason)
+        }
+    }
+
+    private fun terminateAllRunning(reason: String): List<TerminateResult> {
+        val namespace = workflowClient.options.namespace
+        val query = "TaskQueue=\"akuflow-bpmn\" AND ExecutionStatus=\"Running\""
+
+        val request = ListWorkflowExecutionsRequest.newBuilder()
+            .setNamespace(namespace)
+            .setQuery(query)
+            .setPageSize(1000)
+            .build()
+
+        val response = workflowClient.workflowServiceStubs
+            .blockingStub()
+            .listWorkflowExecutions(request)
+
+        val executions = response.executionsList
+        if (executions.isEmpty()) {
+            return emptyList()
         }
 
         return executions.map { info ->
