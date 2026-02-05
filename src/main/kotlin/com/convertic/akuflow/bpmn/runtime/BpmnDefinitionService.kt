@@ -46,7 +46,14 @@ class BpmnDefinitionService(
         val latest = repo.findTopByProcessKeyOrderByVersionDesc(processKey)
         val nextVersion = (latest?.version ?: 0) + 1
 
-        val compiled = compiler.compile(processKey, xml, nextVersion)
+        val compiled = try {
+            compiler.compile(processKey, xml, nextVersion)
+        } catch (e: RuntimeException) {
+            throw BpmnCompilationException(
+                "Invalid BPMN for processKey=$processKey: ${e.message ?: "unknown error"}",
+                e
+            )
+        }
         val compiledJson = compiler.toJson(compiled)
 
         if (latest != null && latest.active) {
@@ -64,6 +71,7 @@ class BpmnDefinitionService(
         return DeployResult(repo.save(entity), compiled)
     }
 
+    @Transactional(readOnly = true)
     fun listDefinitions(): List<DefinitionSummary> =
         repo.findAllByOrderByProcessKeyAscVersionDesc()
             .map { entity ->
@@ -84,13 +92,13 @@ class BpmnDefinitionService(
 
     fun latestActive(processKey: String): CompiledProcess {
         val entity = repo.findTopByProcessKeyAndActiveIsTrueOrderByVersionDesc(processKey)
-            ?: error("No active definition for processKey=$processKey")
+            ?: throw DefinitionNotFoundException("No active definition for processKey=$processKey")
         return compiler.fromJson(entity.compiledJson)
     }
 
     fun byVersion(processKey: String, version: Int): CompiledProcess {
         val entity = repo.findByProcessKeyAndVersion(processKey, version)
-            ?: error("No definition for processKey=$processKey and version=$version")
+            ?: throw DefinitionNotFoundException("No definition for processKey=$processKey and version=$version")
         return compiler.fromJson(entity.compiledJson)
     }
 

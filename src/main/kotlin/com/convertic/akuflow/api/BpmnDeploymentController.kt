@@ -7,7 +7,10 @@ import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/api/bpmn")
+@RequestMapping(
+    value = ["/api/bpmn"],
+    produces = [MediaType.APPLICATION_JSON_VALUE]
+)
 class BpmnDeploymentController(
     private val definitionService: BpmnDefinitionService
 ) {
@@ -37,7 +40,11 @@ class BpmnDeploymentController(
         val warnings: List<String> = emptyList()
     )
 
-    @PostMapping("/deploy", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    @PostMapping(
+        "/deploy",
+        consumes = [MediaType.APPLICATION_JSON_VALUE],
+        produces = [MediaType.APPLICATION_JSON_VALUE]
+    )
     fun deploy(@RequestBody req: DeployRequest): DeployResponse {
         val result = definitionService.deploy(req.processKey, req.xml)
         val entity = result.entity

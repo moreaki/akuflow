@@ -17,6 +17,9 @@ spring:
       hibernate:
         format_sql: true
         show_sql: false
+  mvc:
+    problemdetails:
+      enabled: true
 
 temporal:
   connection:

@@ -4,11 +4,15 @@ import com.convertic.akuflow.bpmn.runtime.BpmnDefinitionService
 import com.convertic.akuflow.temporal.workflows.BpmnWorkflow
 import io.temporal.client.WorkflowClient
 import io.temporal.client.WorkflowOptions
+import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.*
 import java.util.*
 
 @RestController
-@RequestMapping("/api/cases")
+@RequestMapping(
+    value = ["/api/cases"],
+    produces = [MediaType.APPLICATION_JSON_VALUE]
+)
 class CaseController(
     private val definitionService: BpmnDefinitionService,
     private val workflowClient: WorkflowClient
@@ -26,7 +30,10 @@ class CaseController(
         val version: Int
     )
 
-    @PostMapping
+    @PostMapping(
+        consumes = [MediaType.APPLICATION_JSON_VALUE],
+        produces = [MediaType.APPLICATION_JSON_VALUE]
+    )
     fun startCase(@RequestBody req: StartCaseRequest): StartCaseResponse {
         val def = req.version?.let { definitionService.byVersion(req.processKey, it) }
             ?: definitionService.latestActive(req.processKey)
