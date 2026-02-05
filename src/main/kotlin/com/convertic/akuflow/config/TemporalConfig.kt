@@ -4,10 +4,16 @@ import com.convertic.akuflow.temporal.activities.DefinitionLookupActivitiesImpl
 import com.convertic.akuflow.temporal.activities.GroovyScriptActivitiesImpl
 import com.convertic.akuflow.temporal.activities.ServiceTaskDispatcherActivitiesImpl
 import com.convertic.akuflow.temporal.workflows.BpmnWorkflowImpl
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.temporal.client.WorkflowClient
+import io.temporal.client.WorkflowClientOptions
+import io.temporal.common.converter.DataConverter
+import io.temporal.common.converter.DefaultDataConverter
+import io.temporal.common.converter.JacksonJsonPayloadConverter
 import io.temporal.serviceclient.WorkflowServiceStubs
 import io.temporal.worker.Worker
 import io.temporal.worker.WorkerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -20,8 +26,21 @@ class TemporalConfig {
         WorkflowServiceStubs.newLocalServiceStubs()
 
     @Bean
-    fun workflowClient(serviceStubs: WorkflowServiceStubs): WorkflowClient =
-        WorkflowClient.newInstance(serviceStubs)
+    fun temporalDataConverter(objectMapper: ObjectMapper): DataConverter =
+        DefaultDataConverter.newDefaultInstance()
+            .withPayloadConverterOverrides(JacksonJsonPayloadConverter(objectMapper))
+
+    @Bean
+    fun workflowClient(
+        @Qualifier("workflowServiceStubs") serviceStubs: WorkflowServiceStubs,
+        dataConverter: DataConverter
+    ): WorkflowClient =
+        WorkflowClient.newInstance(
+            serviceStubs,
+            WorkflowClientOptions.newBuilder()
+                .setDataConverter(dataConverter)
+                .build()
+        )
 
     @Bean(destroyMethod = "shutdown")
     fun workerFactory(client: WorkflowClient): WorkerFactory =
