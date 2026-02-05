@@ -22,6 +22,10 @@ class ApiExceptionHandler {
     fun handleWorkflowRunNotFound(ex: WorkflowRunNotFoundException): ResponseEntity<ProblemDetail> =
         problem(HttpStatus.NOT_FOUND, ex.message ?: "Workflow run not found")
 
+    @ExceptionHandler(UserTaskNotFoundException::class)
+    fun handleUserTaskNotFound(ex: UserTaskNotFoundException): ResponseEntity<ProblemDetail> =
+        problem(HttpStatus.NOT_FOUND, ex.message ?: "User task not found")
+
     @ExceptionHandler(BpmnCompilationException::class, IllegalArgumentException::class)
     fun handleBadRequest(ex: RuntimeException): ResponseEntity<ProblemDetail> =
         problem(HttpStatus.BAD_REQUEST, ex.message ?: "Bad request")
