@@ -22,6 +22,10 @@ spring:
     problemdetails:
       enabled: true
 
+akuflow:
+  management:
+    terminate-workflows-on-shutdown: true
+
 temporal:
   connection:
     target: 127.0.0.1:7233

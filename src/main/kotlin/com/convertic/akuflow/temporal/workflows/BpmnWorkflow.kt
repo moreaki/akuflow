@@ -1,6 +1,7 @@
 package com.convertic.akuflow.temporal.workflows
 
 import com.convertic.akuflow.bpmn.model.CompiledProcess
+import com.convertic.akuflow.bpmn.model.UserTaskFormField
 import io.temporal.workflow.SignalMethod
 import io.temporal.workflow.QueryMethod
 import io.temporal.workflow.WorkflowInterface
@@ -23,6 +24,9 @@ interface BpmnWorkflow {
 
     @QueryMethod
     fun getState(): BpmnWorkflowState
+
+    @QueryMethod
+    fun getUserTaskInfo(taskId: String): BpmnUserTaskInfo?
 }
 
 data class BpmnWorkflowState(
@@ -31,4 +35,11 @@ data class BpmnWorkflowState(
     val pendingUserTaskId: String?,
     val pendingSignals: Int,
     val pendingMessages: Int
+)
+
+data class BpmnUserTaskInfo(
+    val taskId: String,
+    val name: String,
+    val formKey: String?,
+    val formFields: List<UserTaskFormField>
 )

@@ -108,6 +108,16 @@ class BpmnWorkflowImpl : BpmnWorkflow {
             pendingMessages = pendingMessages.size
         )
 
+    override fun getUserTaskInfo(taskId: String): BpmnUserTaskInfo? {
+        val node = findUserTask(def.nodes, taskId) ?: return null
+        return BpmnUserTaskInfo(
+            taskId = node.id,
+            name = node.name,
+            formKey = node.formKey,
+            formFields = node.formFields
+        )
+    }
+
     private fun waitForUserTask(node: UserTaskNode) {
         pendingUserTaskId = node.id
         userTaskPayload = null
@@ -285,6 +295,20 @@ class BpmnWorkflowImpl : BpmnWorkflow {
                 is EndNode -> return
             }
         }
+    }
+
+    private fun findUserTask(nodes: List<Node>, taskId: String): UserTaskNode? {
+        nodes.forEach { node ->
+            when (node) {
+                is UserTaskNode -> if (node.id == taskId) return node
+                is SubProcessNode -> {
+                    val nested = findUserTask(node.nodes, taskId)
+                    if (nested != null) return nested
+                }
+                else -> Unit
+            }
+        }
+        return null
     }
 
     private fun parseDuration(expr: String): Duration {

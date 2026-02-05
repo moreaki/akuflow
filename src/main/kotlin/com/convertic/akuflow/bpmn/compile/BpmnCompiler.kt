@@ -4,6 +4,9 @@ import com.convertic.akuflow.bpmn.model.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.camunda.bpm.model.bpmn.Bpmn
 import org.camunda.bpm.model.bpmn.instance.*
+import org.camunda.bpm.model.bpmn.instance.camunda.CamundaConstraint
+import org.camunda.bpm.model.bpmn.instance.camunda.CamundaFormData
+import org.camunda.bpm.model.bpmn.instance.camunda.CamundaProperties
 import org.springframework.stereotype.Component
 
 @Component
@@ -50,15 +53,54 @@ class BpmnCompiler(
     }
 
     private fun compileUserTask(ut: UserTask): UserTaskNode {
-        // Minimal: ignore form metadata & camunda extensions for now
+        val formFields = extractFormFields(ut)
         return UserTaskNode(
             id = ut.id,
             name = ut.name ?: ut.id,
-            formKey = null,
-            assigneeRole = null,
-            formFields = emptyList()
+            formKey = ut.camundaFormKey,
+            assigneeRole = ut.camundaCandidateGroups,
+            formFields = formFields
         )
     }
+
+    private fun extractFormFields(ut: UserTask): List<UserTaskFormField> {
+        val extensionElements = ut.extensionElements ?: return emptyList()
+        val formData = extensionElements.elementsQuery
+            .filterByType(CamundaFormData::class.java)
+            .singleResult()
+            ?: return emptyList()
+
+        return formData.camundaFormFields.mapIndexed { index, field ->
+            val properties = extractProperties(field.camundaProperties)
+            val validation = field.camundaValidation
+            val constraints = validation?.camundaConstraints ?: emptyList()
+            val required = hasConstraint(constraints, "required")
+            val readOnly = hasConstraint(constraints, "readonly")
+
+            UserTaskFormField(
+                id = field.camundaId ?: "field_$index",
+                label = field.camundaLabel,
+                type = field.camundaType,
+                defaultValue = field.camundaDefaultValue,
+                required = required,
+                readOnly = readOnly,
+                properties = properties
+            )
+        }
+    }
+
+    private fun extractProperties(properties: CamundaProperties?): Map<String, String> {
+        if (properties == null) return emptyMap()
+        return properties.camundaProperties
+            .mapNotNull { prop ->
+                val name = prop.camundaName
+                if (name.isNullOrBlank()) null else name to (prop.camundaValue ?: "")
+            }
+            .toMap()
+    }
+
+    private fun hasConstraint(constraints: Collection<CamundaConstraint>, name: String): Boolean =
+        constraints.any { it.camundaName == name }
 
     private fun resolveHandlerKey(processId: String, fe: FlowNode): String {
         // For now just generate "processId.elementId"

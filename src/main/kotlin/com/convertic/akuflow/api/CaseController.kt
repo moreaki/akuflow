@@ -7,6 +7,7 @@ import io.temporal.api.workflowservice.v1.ListWorkflowExecutionsRequest
 import io.temporal.client.WorkflowClient
 import io.temporal.client.WorkflowOptions
 import io.temporal.client.WorkflowStub
+import io.temporal.client.WorkflowTargetOptions
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.*
 import java.util.*
@@ -47,6 +48,20 @@ class CaseController(
     data class WorkflowStateResponse(
         val workflowId: String,
         val state: BpmnWorkflowState
+    )
+
+    data class TerminateRequest(
+        val workflowId: String? = null,
+        val processKey: String? = null,
+        val version: Int? = null,
+        val reason: String? = null
+    )
+
+    data class TerminateResult(
+        val workflowId: String,
+        val runId: String?,
+        val status: String,
+        val reason: String?
     )
 
     @PostMapping(
@@ -133,5 +148,64 @@ class CaseController(
             executionTime = latest.executionTime.toString(),
             closeTime = if (latest.hasCloseTime()) latest.closeTime.toString() else null
         )
+    }
+
+    @PostMapping("/terminate", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    fun terminate(@RequestBody req: TerminateRequest): List<TerminateResult> {
+        if (req.workflowId.isNullOrBlank() && req.processKey.isNullOrBlank()) {
+            throw IllegalArgumentException("Either workflowId or processKey must be provided")
+        }
+        if (!req.processKey.isNullOrBlank() && req.version == null) {
+            throw IllegalArgumentException("version is required when using processKey")
+        }
+
+        val reason = req.reason ?: "Terminated by request"
+
+        return when {
+            !req.workflowId.isNullOrBlank() -> {
+                val stub: WorkflowStub = workflowClient.newUntypedWorkflowStub(req.workflowId)
+                stub.terminate(reason)
+                listOf(TerminateResult(req.workflowId, null, "TERMINATED", reason))
+            }
+            else -> terminateByProcessKey(req.processKey!!, req.version!!, reason)
+        }
+    }
+
+    private fun terminateByProcessKey(
+        processKey: String,
+        version: Int,
+        reason: String
+    ): List<TerminateResult> {
+        val prefix = "$processKey-$version-"
+        val query = "WorkflowId STARTS_WITH \"$prefix\" AND ExecutionStatus=\"Running\""
+        val namespace = workflowClient.options.namespace
+
+        val request = ListWorkflowExecutionsRequest.newBuilder()
+            .setNamespace(namespace)
+            .setQuery(query)
+            .setPageSize(1000)
+            .build()
+
+        val response = workflowClient.workflowServiceStubs
+            .blockingStub()
+            .listWorkflowExecutions(request)
+
+        val executions = response.executionsList
+        if (executions.isEmpty()) {
+            throw WorkflowRunNotFoundException(
+                "No running workflows found for processKey=$processKey and version=$version"
+            )
+        }
+
+        return executions.map { info ->
+            val exec = info.execution
+            val target = WorkflowTargetOptions.newBuilder()
+                .setWorkflowId(exec.workflowId)
+                .setRunId(exec.runId)
+                .build()
+            val stub: WorkflowStub = workflowClient.newUntypedWorkflowStub(target)
+            stub.terminate(reason)
+            TerminateResult(exec.workflowId, exec.runId, "TERMINATED", reason)
+        }
     }
 }
