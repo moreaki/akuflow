@@ -56,13 +56,30 @@ list_defs() {
     shift
   done
 
+  local response body status
+  response="$(curl -sS -H "Accept: application/json" -w "\n%{http_code}" "$base_url/api/bpmn/definitions")"
+  status="${response##*$'\n'}"
+  body="${response%$'\n'*}"
+
+  if [[ "$status" != "200" ]]; then
+    echo "Request failed with status $status" >&2
+    echo "$body" >&2
+    exit 1
+  fi
+
+  if ! jq -e 'type=="array"' >/dev/null 2>&1 <<<"$body"; then
+    echo "Unexpected response from server:" >&2
+    echo "$body" >&2
+    exit 1
+  fi
+
   if [[ "$json" == "true" ]]; then
-    curl -sS "$base_url/api/bpmn/definitions" | jq .
+    jq . <<<"$body"
     return
   fi
 
   printf "processKey\tversion\tactive\tprocessName\tversionTag\tmodelerVersion\tinitialVars\n"
-  curl -sS "$base_url/api/bpmn/definitions" | jq -r '
+  jq -r '
     .[] | [
       .processKey,
       .version,
@@ -72,7 +89,7 @@ list_defs() {
       (.modelerVersion // "n/a"),
       (.initialVars | tojson)
     ] | @tsv
-  '
+  ' <<<"$body"
 }
 
 deploy_model() {
