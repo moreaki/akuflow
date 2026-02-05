@@ -11,8 +11,13 @@ class BpmnDefinitionService(
     private val compiler: BpmnCompiler
 ) {
 
+    data class DeployResult(
+        val entity: BpmnProcessDefinitionEntity,
+        val compiled: CompiledProcess
+    )
+
     @Transactional
-    fun deploy(processKey: String, xml: String): BpmnProcessDefinitionEntity {
+    fun deploy(processKey: String, xml: String): DeployResult {
         val latest = repo.findTopByProcessKeyOrderByVersionDesc(processKey)
         val nextVersion = (latest?.version ?: 0) + 1
 
@@ -31,7 +36,7 @@ class BpmnDefinitionService(
             compiledJson = compiledJson,
             active = true
         )
-        return repo.save(entity)
+        return DeployResult(repo.save(entity), compiled)
     }
 
     fun latestActive(processKey: String): CompiledProcess {
