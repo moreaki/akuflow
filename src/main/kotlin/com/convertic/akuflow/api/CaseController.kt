@@ -2,6 +2,7 @@ package com.convertic.akuflow.api
 
 import com.convertic.akuflow.bpmn.runtime.BpmnDefinitionService
 import com.convertic.akuflow.temporal.workflows.BpmnWorkflow
+import io.temporal.api.workflowservice.v1.ListWorkflowExecutionsRequest
 import io.temporal.client.WorkflowClient
 import io.temporal.client.WorkflowOptions
 import io.temporal.client.WorkflowStub
@@ -81,6 +82,43 @@ class CaseController(
             startTime = desc.startTime.toString(),
             executionTime = desc.executionTime.toString(),
             closeTime = desc.closeTime?.toString()
+        )
+    }
+
+    @GetMapping("/find", produces = [MediaType.APPLICATION_JSON_VALUE])
+    fun findLatest(
+        @RequestParam processKey: String,
+        @RequestParam version: Int
+    ): WorkflowStatusResponse {
+        val prefix = "$processKey-$version-"
+        val query = "WorkflowId STARTS_WITH \"$prefix\""
+        val namespace = workflowClient.options.namespace
+
+        val request = ListWorkflowExecutionsRequest.newBuilder()
+            .setNamespace(namespace)
+            .setQuery(query)
+            .setPageSize(100)
+            .build()
+
+        val response = workflowClient.workflowServiceStubs
+            .blockingStub()
+            .listWorkflowExecutions(request)
+
+        val latest = response.executionsList
+            .maxByOrNull { it.startTime.seconds }
+            ?: throw WorkflowRunNotFoundException(
+                "No workflow executions found for processKey=$processKey and version=$version"
+            )
+
+        return WorkflowStatusResponse(
+            workflowId = latest.execution.workflowId,
+            runId = latest.execution.runId,
+            status = latest.status.name,
+            workflowType = latest.type.name,
+            taskQueue = latest.taskQueue,
+            startTime = latest.startTime.toString(),
+            executionTime = latest.executionTime.toString(),
+            closeTime = if (latest.hasCloseTime()) latest.closeTime.toString() else null
         )
     }
 }

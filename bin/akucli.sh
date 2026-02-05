@@ -17,11 +17,15 @@ Usage:
   ./bin/akucli.sh list [--base-url=URL] [--json]
   ./bin/akucli.sh deploy --model=PATH [--processKey=KEY] [--base-url=URL]
   ./bin/akucli.sh run --processKey=KEY --version=N [--vars=JSON] [--vars-file=PATH] [--base-url=URL]
+  ./bin/akucli.sh status --workflowId=ID [--base-url=URL] [--json]
+  ./bin/akucli.sh status --processKey=KEY --version=N [--base-url=URL] [--json]
 
 Examples:
   ./bin/akucli.sh list
   ./bin/akucli.sh deploy --model=./src/test/resources/bpmn/TestProcess.bpmn20.xml
   ./bin/akucli.sh run --processKey=CaseIdLogger --version=2 --vars='{"caseId":"123"}'
+  ./bin/akucli.sh status --workflowId=CaseIdLogger-2-acde1234...
+  ./bin/akucli.sh status --processKey=CaseIdLogger --version=2
 USAGE
 }
 
@@ -211,6 +215,70 @@ run_case() {
   fi
 }
 
+status_case() {
+  local base_url="$BASE_URL"
+  local workflow_id=""
+  local json=false
+  local process_key=""
+  local version=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --base-url=*) base_url="${1#*=}" ;;
+      --workflowId=*) workflow_id="${1#*=}" ;;
+      --processKey=*) process_key="${1#*=}" ;;
+      --version=*) version="${1#*=}" ;;
+      --json) json=true ;;
+      -h|--help) usage; exit 0 ;;
+      *) die "Unknown option: $1" ;;
+    esac
+    shift
+  done
+
+  local url
+  if [[ -n "$workflow_id" ]]; then
+    url="$base_url/api/cases/$workflow_id"
+  else
+    [[ -n "$process_key" ]] || die "Missing --processKey=KEY"
+    [[ -n "$version" ]] || die "Missing --version=N"
+    url="$base_url/api/cases/find?processKey=$process_key&version=$version"
+  fi
+
+  local response status body
+  response="$(request_json "GET" "$url")" \
+    || die "Request failed (could not reach server): $url"
+  status="${response##*$'\n'}"
+  body="${response%$'\n'*}"
+
+  if [[ "$status" =~ ^2 ]]; then
+    if [[ "$json" == "true" ]]; then
+      print_body "$body"
+      return
+    fi
+    printf "workflowId\tstatus\trunId\tworkflowType\ttaskQueue\tstartTime\texecutionTime\tcloseTime\n"
+    jq -r '
+      [
+        .workflowId,
+        .status,
+        (.runId // "n/a"),
+        (.workflowType // "n/a"),
+        (.taskQueue // "n/a"),
+        (.startTime // "n/a"),
+        (.executionTime // "n/a"),
+        (.closeTime // "n/a")
+      ] | @tsv
+    ' <<<"$body"
+  else
+    if [[ -n "$workflow_id" ]]; then
+      echo "Status failed with status $status (workflowId=$workflow_id)" >&2
+    else
+      echo "Status failed with status $status (processKey=$process_key version=$version)" >&2
+    fi
+    print_body "$body" >&2
+    exit 1
+  fi
+}
+
 require_cmd curl
 require_cmd jq
 
@@ -221,6 +289,7 @@ case "$cmd" in
   list) list_defs "$@" ;;
   deploy) deploy_model "$@" ;;
   run) run_case "$@" ;;
+  status) status_case "$@" ;;
   -h|--help|"") usage ;;
   *) die "Unknown command: $cmd" ;;
 esac
