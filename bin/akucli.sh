@@ -26,6 +26,8 @@ Usage:
   ./bin/akucli.sh terminate --workflowId=ID [--reason=TEXT] [--base-url=URL] [--json]
   ./bin/akucli.sh terminate --processKey=KEY --version=N [--reason=TEXT] [--base-url=URL] [--json]
   ./bin/akucli.sh terminate --all-running [--reason=TEXT] [--base-url=URL] [--json]
+  ./bin/akucli.sh task --workflowId=ID --taskId=ID [--base-url=URL] [--json]
+  ./bin/akucli.sh task --processKey=KEY --version=N --taskId=ID [--base-url=URL] [--json]
 
 Examples:
   ./bin/akucli.sh list
@@ -39,6 +41,7 @@ Examples:
   ./bin/akucli.sh terminate --workflowId=CaseIdLogger-2-acde1234... --reason="cleanup"
   ./bin/akucli.sh terminate --processKey=CaseIdLogger --version=2 --reason="cleanup"
   ./bin/akucli.sh terminate --all-running --reason="cleanup"
+  ./bin/akucli.sh task --workflowId=CaseIdLogger-1-70edc6d8-... --taskId=Activity_10ek3uz
 USAGE
 }
 
@@ -542,6 +545,96 @@ terminate_case() {
     exit 1
   fi
 }
+
+task_info() {
+  local base_url="$BASE_URL"
+  local workflow_id=""
+  local process_key=""
+  local version=""
+  local task_id=""
+  local json=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --base-url=*) base_url="${1#*=}" ;;
+      --workflowId=*) workflow_id="${1#*=}" ;;
+      --processKey=*) process_key="${1#*=}" ;;
+      --version=*) version="${1#*=}" ;;
+      --taskId=*) task_id="${1#*=}" ;;
+      --json) json=true ;;
+      -h|--help) usage; exit 0 ;;
+      *) die "Unknown option: $1" ;;
+    esac
+    shift
+  done
+
+  [[ -n "$task_id" ]] || die "Missing --taskId=ID"
+
+  local url response status body
+  if [[ -n "$workflow_id" ]]; then
+    url="$base_url/api/cases/$workflow_id/user-tasks/$task_id"
+  else
+    [[ -n "$process_key" ]] || die "Missing --processKey=KEY"
+    [[ -n "$version" ]] || die "Missing --version=N"
+    local find_url
+    find_url="$base_url/api/cases/find?processKey=$process_key&version=$version"
+    response="$(request_json "GET" "$find_url")" \
+      || die "Request failed (could not reach server): $find_url"
+    status="${response##*$'\n'}"
+    body="${response%$'\n'*}"
+    if [[ ! "$status" =~ ^2 ]]; then
+      echo "Task lookup failed with status $status (processKey=$process_key version=$version)" >&2
+      print_body "$body" >&2
+      exit 1
+    fi
+    workflow_id="$(jq -r '.workflowId' <<<"$body")"
+    url="$base_url/api/cases/$workflow_id/user-tasks/$task_id"
+  fi
+
+  response="$(request_json "GET" "$url")" \
+    || die "Request failed (could not reach server): $url"
+  status="${response##*$'\n'}"
+  body="${response%$'\n'*}"
+
+  if [[ "$status" =~ ^2 ]]; then
+    if [[ "$json" == "true" ]]; then
+      print_body "$body"
+      return
+    fi
+    echo "Task"
+    printf "workflowId\ttaskId\tname\tformKey\tisPending\n"
+    jq -r '
+      [
+        .workflowId,
+        .taskId,
+        .name,
+        (.formKey // "n/a"),
+        (.isPending | tostring)
+      ] | @tsv
+    ' <<<"$body"
+    echo
+    echo "Fields"
+    printf "id\tlabel\ttype\trequired\treadOnly\tdefaultValue\n"
+    jq -r '
+      .formFields[]? | [
+        .id,
+        (.label // "n/a"),
+        (.type // "n/a"),
+        (.required | tostring),
+        (.readOnly | tostring),
+        (.defaultValue // "n/a")
+      ] | @tsv
+    ' <<<"$body"
+  else
+    if [[ -n "$workflow_id" ]]; then
+      echo "Task failed with status $status (workflowId=$workflow_id taskId=$task_id)" >&2
+    else
+      echo "Task failed with status $status (processKey=$process_key version=$version taskId=$task_id)" >&2
+    fi
+    print_body "$body" >&2
+    exit 1
+  fi
+}
 require_cmd curl
 require_cmd jq
 
@@ -556,6 +649,7 @@ case "$cmd" in
   runtime) runtime_case "$@" ;;
   inspect) inspect_case "$@" ;;
   terminate) terminate_case "$@" ;;
+  task) task_info "$@" ;;
   -h|--help|"") usage ;;
   *) die "Unknown command: $cmd" ;;
 esac
