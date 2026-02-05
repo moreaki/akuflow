@@ -23,6 +23,9 @@ Usage:
   ./bin/akucli.sh runtime --processKey=KEY --version=N [--base-url=URL] [--json]
   ./bin/akucli.sh inspect --workflowId=ID [--base-url=URL] [--json]
   ./bin/akucli.sh inspect --processKey=KEY --version=N [--base-url=URL] [--json]
+  ./bin/akucli.sh terminate --workflowId=ID [--reason=TEXT] [--base-url=URL] [--json]
+  ./bin/akucli.sh terminate --processKey=KEY --version=N [--reason=TEXT] [--base-url=URL] [--json]
+  ./bin/akucli.sh terminate --all-running [--reason=TEXT] [--base-url=URL] [--json]
 
 Examples:
   ./bin/akucli.sh list
@@ -33,6 +36,9 @@ Examples:
   ./bin/akucli.sh runtime --workflowId=CaseIdLogger-2-acde1234...
   ./bin/akucli.sh runtime --processKey=CaseIdLogger --version=2
   ./bin/akucli.sh inspect --processKey=CaseIdLogger --version=2
+  ./bin/akucli.sh terminate --workflowId=CaseIdLogger-2-acde1234... --reason="cleanup"
+  ./bin/akucli.sh terminate --processKey=CaseIdLogger --version=2 --reason="cleanup"
+  ./bin/akucli.sh terminate --all-running --reason="cleanup"
 USAGE
 }
 
@@ -458,6 +464,84 @@ inspect_case() {
     ] | @tsv
   ' <<<"$state_body"
 }
+
+terminate_case() {
+  local base_url="$BASE_URL"
+  local workflow_id=""
+  local process_key=""
+  local version=""
+  local all_running=false
+  local reason=""
+  local json=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --base-url=*) base_url="${1#*=}" ;;
+      --workflowId=*) workflow_id="${1#*=}" ;;
+      --processKey=*) process_key="${1#*=}" ;;
+      --version=*) version="${1#*=}" ;;
+      --all-running) all_running=true ;;
+      --reason=*) reason="${1#*=}" ;;
+      --json) json=true ;;
+      -h|--help) usage; exit 0 ;;
+      *) die "Unknown option: $1" ;;
+    esac
+    shift
+  done
+
+  if [[ "$all_running" == "true" ]]; then
+    if [[ -n "$workflow_id" || -n "$process_key" ]]; then
+      die "--all-running cannot be combined with --workflowId or --processKey"
+    fi
+  elif [[ -z "$workflow_id" && -z "$process_key" ]]; then
+    die "Provide --workflowId or --processKey or --all-running"
+  fi
+  if [[ -n "$process_key" && -z "$version" ]]; then
+    die "Missing --version=N when using --processKey"
+  fi
+
+  local payload
+  if [[ "$all_running" == "true" ]]; then
+    payload="$(jq -n --arg reason "$reason" \
+      '{allRunning:true, reason: ($reason | select(length>0))}')"
+  elif [[ -n "$workflow_id" ]]; then
+    payload="$(jq -n --arg workflowId "$workflow_id" --arg reason "$reason" \
+      '{workflowId:$workflowId, reason: ($reason | select(length>0))}')"
+  else
+    payload="$(jq -n --arg processKey "$process_key" --arg version "$version" --arg reason "$reason" \
+      '{processKey:$processKey, version:($version|tonumber), reason: ($reason | select(length>0))}')"
+  fi
+
+  local response status body
+  response="$(request_json "POST" "$base_url/api/cases/terminate" "$payload")" \
+    || die "Request failed (could not reach server): $base_url/api/cases/terminate"
+  status="${response##*$'\n'}"
+  body="${response%$'\n'*}"
+
+  if [[ "$status" =~ ^2 ]]; then
+    if [[ "$json" == "true" ]]; then
+      print_body "$body"
+      return
+    fi
+    printf "workflowId\trunId\tstatus\treason\n"
+    jq -r '
+      .[] | [
+        .workflowId,
+        (.runId // "n/a"),
+        .status,
+        (.reason // "n/a")
+      ] | @tsv
+    ' <<<"$body"
+  else
+    if [[ -n "$workflow_id" ]]; then
+      echo "Terminate failed with status $status (workflowId=$workflow_id)" >&2
+    else
+      echo "Terminate failed with status $status (processKey=$process_key version=$version)" >&2
+    fi
+    print_body "$body" >&2
+    exit 1
+  fi
+}
 require_cmd curl
 require_cmd jq
 
@@ -471,6 +555,7 @@ case "$cmd" in
   lifecycle) lifecycle_case "$@" ;;
   runtime) runtime_case "$@" ;;
   inspect) inspect_case "$@" ;;
+  terminate) terminate_case "$@" ;;
   -h|--help|"") usage ;;
   *) die "Unknown command: $cmd" ;;
 esac
