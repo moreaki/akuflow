@@ -19,6 +19,8 @@ Usage:
   ./bin/akucli.sh run --processKey=KEY --version=N [--vars=JSON] [--vars-file=PATH] [--base-url=URL]
   ./bin/akucli.sh status --workflowId=ID [--base-url=URL] [--json]
   ./bin/akucli.sh status --processKey=KEY --version=N [--base-url=URL] [--json]
+  ./bin/akucli.sh state --workflowId=ID [--base-url=URL] [--json]
+  ./bin/akucli.sh state --processKey=KEY --version=N [--base-url=URL] [--json]
 
 Examples:
   ./bin/akucli.sh list
@@ -26,6 +28,8 @@ Examples:
   ./bin/akucli.sh run --processKey=CaseIdLogger --version=2 --vars='{"caseId":"123"}'
   ./bin/akucli.sh status --workflowId=CaseIdLogger-2-acde1234...
   ./bin/akucli.sh status --processKey=CaseIdLogger --version=2
+  ./bin/akucli.sh state --workflowId=CaseIdLogger-2-acde1234...
+  ./bin/akucli.sh state --processKey=CaseIdLogger --version=2
 USAGE
 }
 
@@ -279,6 +283,79 @@ status_case() {
   fi
 }
 
+state_case() {
+  local base_url="$BASE_URL"
+  local workflow_id=""
+  local json=false
+  local process_key=""
+  local version=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --base-url=*) base_url="${1#*=}" ;;
+      --workflowId=*) workflow_id="${1#*=}" ;;
+      --processKey=*) process_key="${1#*=}" ;;
+      --version=*) version="${1#*=}" ;;
+      --json) json=true ;;
+      -h|--help) usage; exit 0 ;;
+      *) die "Unknown option: $1" ;;
+    esac
+    shift
+  done
+
+  local url
+  if [[ -n "$workflow_id" ]]; then
+    url="$base_url/api/cases/$workflow_id/state"
+  else
+    [[ -n "$process_key" ]] || die "Missing --processKey=KEY"
+    [[ -n "$version" ]] || die "Missing --version=N"
+    url="$base_url/api/cases/find?processKey=$process_key&version=$version"
+  fi
+
+  local response status body
+  response="$(request_json "GET" "$url")" \
+    || die "Request failed (could not reach server): $url"
+  status="${response##*$'\n'}"
+  body="${response%$'\n'*}"
+
+  if [[ "$status" =~ ^2 ]]; then
+    if [[ "$json" == "true" ]]; then
+      print_body "$body"
+      return
+    fi
+
+    local state_json="$body"
+    if [[ -z "$workflow_id" ]]; then
+      local wid
+      wid="$(jq -r '.workflowId' <<<"$body")"
+      url="$base_url/api/cases/$wid/state"
+      response="$(request_json "GET" "$url")" \
+        || die "Request failed (could not reach server): $url"
+      status="${response##*$'\n'}"
+      state_json="${response%$'\n'*}"
+    fi
+
+    printf "workflowId\tstatus\tcurrentNodeId\tpendingUserTaskId\tpendingSignals\tpendingMessages\n"
+    jq -r '
+      [
+        .workflowId,
+        .state.status,
+        (.state.currentNodeId // "n/a"),
+        (.state.pendingUserTaskId // "n/a"),
+        (.state.pendingSignals | tostring),
+        (.state.pendingMessages | tostring)
+      ] | @tsv
+    ' <<<"$state_json"
+  else
+    if [[ -n "$workflow_id" ]]; then
+      echo "State failed with status $status (workflowId=$workflow_id)" >&2
+    else
+      echo "State failed with status $status (processKey=$process_key version=$version)" >&2
+    fi
+    print_body "$body" >&2
+    exit 1
+  fi
+}
 require_cmd curl
 require_cmd jq
 
@@ -290,6 +367,7 @@ case "$cmd" in
   deploy) deploy_model "$@" ;;
   run) run_case "$@" ;;
   status) status_case "$@" ;;
+  state) state_case "$@" ;;
   -h|--help|"") usage ;;
   *) die "Unknown command: $cmd" ;;
 esac
