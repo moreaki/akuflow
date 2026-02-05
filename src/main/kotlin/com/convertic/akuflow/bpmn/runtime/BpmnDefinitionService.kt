@@ -113,8 +113,20 @@ class BpmnDefinitionService(
 
     private fun loadCompiled(entity: BpmnProcessDefinitionEntity): CompiledProcess =
         try {
-            compiler.fromJson(entity.compiledJson)
+            val compiled = compiler.fromJson(entity.compiledJson)
+            if (hasMissingNodeRefs(compiled)) {
+                compiler.compile(entity.processKey, entity.xml, entity.version)
+            } else {
+                compiled
+            }
         } catch (e: RuntimeException) {
             compiler.compile(entity.processKey, entity.xml, entity.version)
         }
+
+    private fun hasMissingNodeRefs(def: CompiledProcess): Boolean {
+        val nodeIds = def.nodes.map { it.id }.toSet()
+        return def.transitions.any { t ->
+            t.fromId !in nodeIds || t.toId !in nodeIds
+        }
+    }
 }
